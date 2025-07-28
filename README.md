@@ -14,5 +14,6 @@ make -j4
 
 ## Visualization 🗺️
 cd PlanViz-main
+
 python3 script/run.py --map ../example_problems/random.domain/maps/random-32-32-20.map --plan ../test.json --grid --aid --tid
 
