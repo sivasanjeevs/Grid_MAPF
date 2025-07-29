@@ -1,12 +1,14 @@
+#ifndef SIMULATOR_H // ADDED: Header guard to prevent multiple inclusions
+#define SIMULATOR_H // ADDED: Header guard
+
 #include "ActionModel.h"
 #include "SharedEnv.h"
 #include "States.h"
 #include "nlohmann/json.hpp"
-
-
-//simulator is use for simulating the moves and store the current states
-//has function (1) simulate move (based on the given actions and current states)
-//             (2) sync share env?
+#include "Logger.h"     // ADDED: Include for Logger
+#include <vector>       // ADDED: Include for std::vector
+#include <list>         // ADDED: Include for std::list
+#include <iostream>     // ADDED: Include for std::cout, std::endl
 
 class Simulator {
 public:
@@ -17,7 +19,8 @@ public:
 
         for (size_t i = 0; i < start_locs.size(); i++) {
             if (grid.map[start_locs[i]] == 1) {
-                cout << "error: agent " << i << "'s start location is an obstacle(" << start_locs[i] << ")" << endl;
+                // MODIFIED: Used std::cout and std::endl for clarity.
+                std::cout << "error: agent " << i << "'s start location is an obstacle(" << start_locs[i] << ")" << std::endl;
                 exit(0);
             }
             starts[i] = State(start_locs[i], 0, 0);
@@ -29,11 +32,9 @@ public:
         planner_movements.resize(num_of_agents);
     }
 
-    vector<State> move(vector<Action> &next_actions);
+    std::vector<State> move(std::vector<Action> &next_actions);
 
-    //void sync_shared_env(SharedEnvironment* env);
-
-    vector<State> get_current_state() { return curr_states; }
+    std::vector<State> get_current_state() { return curr_states; }
 
     int get_curr_timestep() { return timestep; }
 
@@ -42,33 +43,28 @@ public:
     void sync_shared_env(SharedEnvironment *env);
 
     nlohmann::ordered_json actual_path_to_json() const;
-
     nlohmann::ordered_json planned_path_to_json() const;
-
     nlohmann::ordered_json starts_to_json() const;
-
     nlohmann::ordered_json action_errors_to_json() const;
 
     int get_number_errors() const { return model->errors.size(); }
 
+    // ADDED: This function was missing, causing a compilation error.
+    void set_logger(Logger* new_logger) { this->logger = new_logger; }
+
 private:
     Grid map;
-
     ActionModelWithRotate *model;
+    Logger* logger = nullptr; // ADDED: Logger member to store the logger instance.
 
-
-    // #timesteps for simulation
     int timestep = 0;
-
     std::vector<Path> paths;
-
-    vector<State> starts;
+    std::vector<State> starts;
     int num_of_agents;
-
-    vector<State> curr_states;
-
-    vector<list<Action>> actual_movements;
-    vector<list<Action>> planner_movements;
-
+    std::vector<State> curr_states;
+    std::vector<std::list<Action>> actual_movements;
+    std::vector<std::list<Action>> planner_movements;
     bool all_valid = true;
 };
+
+#endif // ADDED: End of header guard

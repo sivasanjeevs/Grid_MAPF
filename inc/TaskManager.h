@@ -1,76 +1,66 @@
-#include "SharedEnv.h"
-#include "States.h"
-#include "Tasks.h"
+#ifndef TASKMANAGER_H
+#define TASKMANAGER_H
 
+#include "Tasks.h"
+#include "SharedEnv.h"
 #include "Logger.h"
-#include "nlohmann/json.hpp"
 #include <vector>
+#include <list>
+#include <unordered_map>
+#include <string>
+#include <tuple>
+
+// Using declarations are removed from here to prevent conflicts
+using std::list;
+using std::make_pair;
+using std::make_tuple;
+using std::pair;
+using std::string;
+using std::tuple;
+using std::vector;
+
 
 class TaskManager {
 public:
-    list<std::tuple<int, int, int, int>> events;
-    vector<list<pair<int, int>>> actual_schedule;
-    vector<list<pair<int, int>>> planner_schedule;
-    list<std::tuple<std::string, int, int, int, int>> schedule_errors;
+    int num_of_agents;
+    int num_of_task_finish = 0;
+    int num_tasks_reveal;
 
-    vector<int> new_freeagents;
-    vector<int> new_tasks;
+    vector<vector<pair<int, int>>> planner_schedule; //timestep, task_id
+    vector<vector<pair<int, int>>> actual_schedule;  //timestep, task_id
 
-    list<int> check_finished_tasks(vector<State> &states, int timestep);
+    vector<tuple<string, int, int, int, int>> schedule_errors;
+    vector<tuple<int, int, int, int>> events; // <timestep, agent_id, task_id, seq_id>
 
-    int curr_timestep;
+    TaskManager(int num_of_agents, const list<list<int>> &tasks, int num_tasks_reveal, Logger *logger);
 
-
-    // reveal new task
-    void reveal_tasks(int timestep);
+    void reveal_tasks(int timestep, const std::list<std::list<int>>& new_manual_tasks = {});
     void update_tasks(vector<State> &states, vector<int> &assignment, int timestep);
-
     void sync_shared_env(SharedEnvironment *env);
 
-    void set_num_tasks_reveal(float num) { num_tasks_reveal = num * num_of_agents; };
-    void set_logger(Logger *logger) { this->logger = logger; }
-
-    bool validate_task_assignment(vector<int> &assignment);// validate the task assignment
-    bool set_task_assignment(vector<int> &assignment);     // set the task assignment; return true if task is valid
-
-    int get_number_errors() const { return schedule_errors.size(); }
-
-
-    TaskManager(std::vector<list<int>> &tasks, int num_of_agents) : tasks(tasks), num_of_agents(num_of_agents) {
-        finished_tasks.resize(num_of_agents);
-        current_assignment.resize(num_of_agents);
-        for (auto &t: current_assignment)
-            t = -1;
-        // events.resize(num_of_agents);
-        actual_schedule.resize(num_of_agents);
-        planner_schedule.resize(num_of_agents);
-    }
-
+    int get_number_errors() const { return schedule_errors.size(); };
     nlohmann::ordered_json to_json(int map_cols) const;
 
-
-    int num_of_task_finish = 0;
-
-    ~TaskManager() {
-        for (Task *task: all_tasks) {
-            delete task;
-        }
-    }
+    vector<vector<pair<int, int>>> get_actual_schedule() const { return actual_schedule; };
+    vector<vector<pair<int, int>>> get_planner_schedule() const { return planner_schedule; };
+    void set_logger(Logger* logger) { this->logger = logger; }
 
 private:
-    Logger *logger = nullptr;
-
-    std::unordered_map<int, Task *> ongoing_tasks;
-    vector<int> current_assignment;
-
-    int num_tasks_reveal = 1;
-    int num_of_agents;
-
-    std::vector<std::list<Task *>> finished_tasks;// location + finish time
-
-    list<Task *> all_tasks;
-
-
-    std::vector<list<int>> &tasks;
     int task_id = 0;
+    int curr_timestep = 0;
+    const list<list<int>> &tasks; 
+    // Explicitly use std::unordered_map to avoid conflicts
+    std::unordered_map<int, Task *> ongoing_tasks;
+    list<Task *> all_tasks;
+    vector<list<Task *>> finished_tasks; 
+    vector<int> current_assignment;      
+    list<int> new_tasks;
+    list<int> new_freeagents;
+    Logger *logger;
+
+    bool set_task_assignment(vector<int> &assignment);
+    bool validate_task_assignment(vector<int> &assignment);
+    list<int> check_finished_tasks(vector<State> &states, int timestep);
 };
+
+#endif

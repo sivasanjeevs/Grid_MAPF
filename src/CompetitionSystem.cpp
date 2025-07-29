@@ -120,6 +120,34 @@ void BaseSystem::simulate(int simulation_time) {
     vector<Action> all_wait_actions(num_of_agents, Action::NA);
 
     for (; simulator.get_curr_timestep() < simulation_time;) {
+        
+        // =================================================================
+        // VVVV              MANUAL TASK CREATION SECTION             VVVV
+        // =================================================================
+        
+        // Create a list to hold the new tasks you want to add
+        std::list<std::list<int>> tasks_to_add;
+
+        // Example: Add new tasks at a specific timestep.
+        if (simulator.get_curr_timestep() == 35) {
+            // Add a new task with a start location of 10 and an end location of 25
+            tasks_to_add.push_back({4, 96});
+            tasks_to_add.push_back({2, 95});
+            tasks_to_add.push_back({6, 97});
+            tasks_to_add.push_back({7, 96});
+            tasks_to_add.push_back({5, 93});
+        }
+        
+        // If there are tasks to add, call the reveal_tasks function
+        if (!tasks_to_add.empty()) {
+            // This uses the modified reveal_tasks function from TaskManager.cpp
+            task_manager.reveal_tasks(simulator.get_curr_timestep(), tasks_to_add);
+        }
+
+        // =================================================================
+        // ^^^^            END OF MANUAL TASK CREATION SECTION          ^^^^
+        // =================================================================
+        
         // find a plan
         sync_shared_env();
 

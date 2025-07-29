@@ -1,156 +1,85 @@
-#pragma once
-// #include "BasicSystem.h"
+#ifndef COMPETITIONSYSTEM_H
+#define COMPETITIONSYSTEM_H
+
 #include "ActionModel.h"
-#include "Entry.h"
 #include "Grid.h"
-#include "Logger.h"
-#include "SharedEnv.h"
 #include "Simulator.h"
+#include "States.h"
+#include <Logger.h>
+#include <memory>
+#include <string>
+#include <vector>
+#include "Entry.h"
 #include "TaskManager.h"
 #include "Tasks.h"
 #include <future>
-#include <pthread.h>
+#include <thread>
 
 class BaseSystem {
 public:
-    Logger *logger = nullptr;
-
-    BaseSystem(Grid &grid, Entry *planner, std::vector<int> &start_locs, std::vector<list<int>> &tasks, ActionModelWithRotate *model) : map(grid), planner(planner), env(planner->env),
-                                                                                                                                        task_manager(tasks, start_locs.size()), simulator(grid, start_locs, model) {
-        num_of_agents = start_locs.size();
-        starts.resize(num_of_agents);
-
-        for (size_t i = 0; i < start_locs.size(); i++) {
-            if (grid.map[start_locs[i]] == 1) {
-                cout << "error: agent " << i << "'s start location is an obstacle(" << start_locs[i] << ")" << endl;
-                exit(0);
-            }
-            starts[i] = State(start_locs[i], 0, 0);
-        }
-
-        //        int task_id = 0;
-        // for (auto& task_location: tasks)
-        //        {
-        //            all_tasks.emplace_back(task_id++, task_location);
-        //            task_queue.emplace_back(all_tasks.back().task_id, all_tasks.back().locations.front());
-        //            //task_queue.emplace_back(task_id++, task_location);
-        //        }
-        //        num_of_agents = start_locs.size();
-        //        starts.resize(num_of_agents);
-        //        for (size_t i = 0; i < start_locs.size(); i++)
-        //        {
-        //            starts[i] = State(start_locs[i], 0, 0);
-        //        }
-    };
-
-    virtual ~BaseSystem() {
-        //safely exit: wait for join the thread then delete planner and exit
-        if (started) {
-            task_td.join();
-        }
-        if (planner != nullptr) {
-            delete planner;
-        }
-    };
-
-    void set_num_tasks_reveal(float num) { task_manager.set_num_tasks_reveal(num); };
-    void set_plan_time_limit(int limit) { plan_time_limit = limit; };
-    void set_preprocess_time_limit(int limit) { preprocess_time_limit = limit; };
-    void set_log_level(int level) { log_level = level; };
-    void set_logger(Logger *logger) {
-        this->logger = logger;
-        task_manager.set_logger(logger);
+    // MODIFIED: The constructor now accepts a vector of tasks (tasks_vec) to match the calling code in driver.cpp.
+    // It then converts this vector to the internal std::list member `tasks`.
+    BaseSystem(Grid& grid, Entry* planner, std::vector<int>& start_locs, const std::vector<std::list<int>>& tasks_vec, ActionModelWithRotate* model) :
+            map(grid),
+            planner(planner),
+            num_of_agents(start_locs.size()),
+            tasks(tasks_vec.begin(), tasks_vec.end()), // MODIFIED: Initialize member list by copying from the input vector.
+            task_manager(start_locs.size(), this->tasks, 1, nullptr), // Pass the new list member to TaskManager.
+            simulator(grid, start_locs, model) {
+        env = planner->env;
+        env->num_of_agents = num_of_agents;
     }
 
+    void set_logger(Logger* logger) {
+        this->logger = logger;
+        task_manager.set_logger(logger);
+        simulator.set_logger(logger); // This will now work after updating Simulator.h
+    }
+
+    void set_plan_time_limit(int time_limit) { plan_time_limit = time_limit; }
+    void set_preprocess_time_limit(int time_limit) { preprocess_time_limit = time_limit; }
+
+    // This now correctly sets the public member variable
+    void set_num_tasks_reveal(float num) { task_manager.num_tasks_reveal = num * num_of_agents; };
+
     void simulate(int simulation_time);
-    void plan(int &timeout_timesteps);
-    bool planner_wrapper();
-
-    //void saveSimulationIssues(const string &fileName) const;
-    void saveResults(const string &fileName, int screen) const;
-
+    void saveResults(const std::string& fileName, int screen) const;
 
 protected:
     Grid map;
-    int simulation_time;
+    int num_of_agents;
+    int plan_time_limit;
+    int preprocess_time_limit;
+    int simulation_time = 0;
+    Logger* logger = nullptr;
+    Entry* planner;
+    SharedEnvironment* env = nullptr;
 
-    vector<Action> proposed_actions;
-    vector<int> proposed_schedule;
+    TaskManager task_manager;
+    Simulator simulator;
+
+    std::vector<int> solution_costs;
+    std::vector<double> planner_times;
 
     int total_timetous = 0;
 
-
+    std::vector<Action> proposed_actions;
+    std::vector<int> proposed_schedule;
     std::future<bool> future;
     std::thread task_td;
     bool started = false;
 
-    Entry *planner;
-    SharedEnvironment *env;
-
-    int preprocess_time_limit = 10;
-
-    int plan_time_limit = 3;
-
-
-    vector<State> starts;
-    int num_of_agents;
-
-    int log_level = 1;
-
-    // tasks that haven't been finished but have been revealed to agents;
-
-    vector<list<std::tuple<int, int, std::string>>> events;
-
-    //for evaluation
-    vector<int> solution_costs;
-    list<double> planner_times;
-    bool fast_mover_feasible = true;
-
-
     void initialize();
     bool planner_initialize();
-
-
-    TaskManager task_manager;
-    Simulator simulator;
-    // deque<Task> task_queue;
-    virtual void sync_shared_env();
-
-    void move(vector<Action> &actions);
-    bool valid_moves(vector<State> &prev, vector<Action> &next);
-
     void log_preprocessing(bool succ);
-    // void log_event_assigned(int agent_id, int task_id, int timestep);
-    // void log_event_finished(int agent_id, int task_id, int timestep);
+    // Corrected the condition to check against tasks size
+    bool is_simulation_done() { return task_manager.num_of_task_finish >= tasks.size(); }
+    void plan(int& timeout_timesteps);
+    bool planner_wrapper();
+    void sync_shared_env();
+    
+    // MODIFIED: Changed from a const reference to an object to hold the converted task list.
+    std::list<std::list<int>> tasks;
 };
 
-
-// class TaskAssignSystem : public BaseSystem
-// {
-// public:
-// 	TaskAssignSystem(Grid &grid, MAPFPlanner* planner, std::vector<int>& start_locs, std::vector<int>& tasks, ActionModelWithRotate* model):
-//         BaseSystem(grid, planner, model)
-//     {
-//         int task_id = 0;
-//         for (auto& task_location: tasks)
-//         {
-//             all_tasks.emplace_back(task_id++, task_location);
-//             task_queue.emplace_back(all_tasks.back().task_id, all_tasks.back().locations.front());
-//             //task_queue.emplace_back(task_id++, task_location);
-//         }
-//         num_of_agents = start_locs.size();
-//         starts.resize(num_of_agents);
-//         for (size_t i = 0; i < start_locs.size(); i++)
-//         {
-//             starts[i] = State(start_locs[i], 0, 0);
-//         }
-//     };
-
-// 	~TaskAssignSystem(){};
-
-
-// private:
-//     deque<Task> task_queue;
-
-// 	void update_tasks();
-// };
+#endif

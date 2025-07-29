@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
              "run simulation")                                                                                                                                                     //
             ("fileStoragePath,f", po::value<std::string>()->default_value(""),
              "the large file storage path")                                                                                                                                 //
-            ("planTimeLimit,t", po::value<int>()->default_value(1000),
+            ("planTimeLimit,t", po::value<int>()->default_value(100),
              "the time limit for planner in milliseconds")                                                                                                                          //
             ("preprocessTimeLimit,p", po::value<int>()->default_value(30000),
              "the time limit for preprocessing in milliseconds")                                                                                                             //
