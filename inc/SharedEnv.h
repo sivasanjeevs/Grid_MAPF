@@ -1,10 +1,10 @@
 #pragma once
 #include "Grid.h"
-#include "States.h"
 #include "Tasks.h"
 #include "nlohmann/json.hpp"
 #include <unordered_map>
-
+#include "States.h" // This file should define the 'State' struct/class
+#include "Logger.h"
 
 typedef std::chrono::steady_clock::time_point TimePoint;
 typedef std::chrono::milliseconds milliseconds;

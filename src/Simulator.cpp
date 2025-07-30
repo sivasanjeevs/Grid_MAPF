@@ -1,12 +1,30 @@
 #include "Simulator.h"
+// #include "Action.h" // REMOVED: This line was incorrect and caused the error.
 #include "nlohmann/json.hpp"
+
 using json = nlohmann::ordered_json;
 
-vector<State> Simulator::move(vector<Action> &actions) {
-    //bool move_valid = true;
+Simulator::Simulator(const Grid &grid, const std::vector<int> &start_locs, ActionModelWithRotate *model) : map(grid), model(model) {
+    num_of_agents = start_locs.size();
+    starts.resize(num_of_agents);
+    paths.resize(num_of_agents);
+
+    for (size_t i = 0; i < start_locs.size(); i++) {
+        if (map.map.at(start_locs[i]) == 1) {
+            std::cout << "error: agent " << i << "'s start location is an obstacle(" << start_locs[i] << ")" << std::endl;
+            exit(1);
+        }
+        starts[i] = State(start_locs[i], 0, 0);
+    }
+    curr_states = starts;
+    actual_movements.resize(num_of_agents);
+    planner_movements.resize(num_of_agents);
+}
+
+std::vector<State> Simulator::move(const std::vector<Action> &actions_plan) {
+    std::vector<Action> actions = actions_plan;
+    all_valid = false;
     for (int k = 0; k < num_of_agents; k++) {
-        //move_valid = false;
-        all_valid = false;
         if (k >= actions.size()) {
             planner_movements[k].push_back(Action::NA);
         } else {
@@ -15,9 +33,10 @@ vector<State> Simulator::move(vector<Action> &actions) {
     }
 
     if (!model->is_valid(curr_states, actions, timestep)) {
-        //move_valid = false;
         all_valid = false;
         actions = std::vector<Action>(num_of_agents, Action::W);
+    } else {
+        all_valid = true;
     }
 
     curr_states = model->result_states(curr_states, actions);
@@ -27,7 +46,10 @@ vector<State> Simulator::move(vector<Action> &actions) {
         paths[k].push_back(curr_states[k]);
         actual_movements[k].push_back(actions[k]);
     }
-    //return move_valid;
+    return curr_states;
+}
+
+const std::vector<State>& Simulator::get_states() const {
     return curr_states;
 }
 
@@ -37,18 +59,16 @@ void Simulator::sync_shared_env(SharedEnvironment *env) {
 }
 
 json Simulator::actual_path_to_json() const {
-    // Save actual paths
     json apaths = json::array();
     for (int i = 0; i < num_of_agents; i++) {
         std::string path;
         bool first = true;
-        for (const auto action: actual_movements[i]) {
+        for (const auto action : actual_movements[i]) {
             if (!first) {
                 path += ",";
-            } else {
-                first = false;
             }
-
+            first = false;
+            // Using the original if-else logic to convert actions to chars
             if (action == Action::FW) {
                 path += "F";
             } else if (action == Action::CR) {
@@ -63,23 +83,20 @@ json Simulator::actual_path_to_json() const {
         }
         apaths.push_back(path);
     }
-
     return apaths;
 }
 
 json Simulator::planned_path_to_json() const {
-    //planned paths
     json ppaths = json::array();
     for (int i = 0; i < num_of_agents; i++) {
         std::string path;
         bool first = true;
-        for (const auto action: planner_movements[i]) {
+        for (const auto action : planner_movements[i]) {
             if (!first) {
                 path += ",";
-            } else {
-                first = false;
             }
-
+            first = false;
+            // Using the original if-else logic to convert actions to chars
             if (action == Action::FW) {
                 path += "F";
             } else if (action == Action::CR) {
@@ -94,7 +111,6 @@ json Simulator::planned_path_to_json() const {
         }
         ppaths.push_back(path);
     }
-
     return ppaths;
 }
 
@@ -105,40 +121,34 @@ json Simulator::starts_to_json() const {
         s.push_back(starts[i].location / map.cols);
         s.push_back(starts[i].location % map.cols);
         switch (starts[i].orientation) {
-            case 0:
-                s.push_back("E");
-                break;
-            case 1:
-                s.push_back("S");
-            case 2:
-                s.push_back("W");
-                break;
-            case 3:
-                s.push_back("N");
-                break;
+            case 0: s.push_back("E"); break;
+            case 1: s.push_back("S"); break;
+            case 2: s.push_back("W"); break;
+            case 3: s.push_back("N"); break;
         }
         start.push_back(s);
     }
-
     return start;
 }
 
 json Simulator::action_errors_to_json() const {
-    // Save errors
     json errors = json::array();
-    for (auto error: model->errors) {
-        std::string error_msg;
-        int agent1;
-        int agent2;
-        int timestep;
-        std::tie(error_msg, agent1, agent2, timestep) = error;
+    for (auto error : model->errors) {
         json e = json::array();
-        e.push_back(agent1);
-        e.push_back(agent2);
-        e.push_back(timestep);
-        e.push_back(error_msg);
+        e.push_back(std::get<1>(error));
+        e.push_back(std::get<2>(error));
+        e.push_back(std::get<3>(error));
+        e.push_back(std::get<0>(error));
         errors.push_back(e);
     }
-
     return errors;
+}
+
+int Simulator::get_number_errors() const {
+    return model->errors.size();
+}
+
+void Simulator::set_logger(Logger* new_logger) {
+    this->logger = new_logger;
+    model->set_logger(new_logger);
 }
